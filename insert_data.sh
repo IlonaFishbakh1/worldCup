@@ -8,25 +8,31 @@ else
 fi
 
 # Do not change code above this line. Use the PSQL variable above to query your database.
+$PSQL "TRUNCATE games, teams RESTART IDENTITY"
 
-echo "$($PSQL "TRUNCATE TABLE games, teams;")"
-
-# Read CSV
-tail -n +2 games.csv | while IFS="," read YEAR ROUND WINNER OPPONENT WGOALS OGOALS
+tail -n +2 games.csv | while IFS="," read -r YEAR ROUND WINNER OPPONENT WIN_GOALS OPP_GOALS
 do
-  # Insert winner
-  echo "$($PSQL "INSERT INTO teams(name) VALUES('$WINNER') ON CONFLICT (name) DO NOTHING;")"
+     WINNER_ID=$($PSQL "SELECT team_id FROM teams WHERE name='$WINNER'")
+  WINNER_ID=$(echo $WINNER_ID | xargs)
 
-  # Insert opponent
-  echo "$($PSQL "INSERT INTO teams(name) VALUES('$OPPONENT') ON CONFLICT (name) DO NOTHING;")"
+  if [[ -z $WINNER_ID ]]
+  then
+    $PSQL "INSERT INTO teams(name) VALUES('$WINNER')"
+    WINNER_ID=$($PSQL "SELECT team_id FROM teams WHERE name='$WINNER'")
+    WINNER_ID=$(echo $WINNER_ID | xargs)
+  fi
 
-  # Get winner_id
-  WINNER_ID=$($PSQL "SELECT team_id FROM teams WHERE name='$WINNER';")
+  OPPONENT_ID=$($PSQL "SELECT team_id FROM teams WHERE name='$OPPONENT'")
+  OPPONENT_ID=$(echo $OPPONENT_ID | xargs)
 
-  # Get opponent_id
-  OPPONENT_ID=$($PSQL "SELECT team_id FROM teams WHERE name='$OPPONENT';")
+  if [[ -z $OPPONENT_ID ]]
+  then
+    $PSQL "INSERT INTO teams(name) VALUES('$OPPONENT')"
+    OPPONENT_ID=$($PSQL "SELECT team_id FROM teams WHERE name='$OPPONENT'")
+    OPPONENT_ID=$(echo $OPPONENT_ID | xargs)
+  fi
 
-  # Insert game
-  echo "$($PSQL "INSERT INTO games(year, round, winner_id, opponent_id, winner_goals, opponent_goals) VALUES($YEAR, '$ROUND', $WINNER_ID, $OPPONENT_ID, $WGOALS, $OGOALS);")"
+  $PSQL "INSERT INTO games(year, round, winner_id, opponent_id, winner_goals, opponent_goals)
+  VALUES ($YEAR, '$ROUND', $WINNER_ID, $OPPONENT_ID, $WIN_GOALS, $OPP_GOALS)"
 
 done
